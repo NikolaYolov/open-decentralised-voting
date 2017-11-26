@@ -116,12 +116,12 @@ class Server(QObject):
             msg.make_identification(self.id_to_address)
             self.send_message(ip, port, msg)
 
-            msg = Message()
+            msg = message.Message()
             msg.make_blockhcian(self.blockchain)
             self.send_message(ip, port, msg)
 
             if vote_mgr.hasVoted():
-                msg = Message()
+                msg = message.Message()
                 msg.make_tiny_vote(self.my_id, vid, self.vote_mgr.getTinyVote(vid))
                 self.send_message(ip, port, msg)
 
