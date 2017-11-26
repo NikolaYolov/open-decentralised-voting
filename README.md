@@ -12,7 +12,7 @@ We aim to learn how to develop a custom, purpose-built blockchain technology wit
 
 ### Description
 
-# Blockchain
+#### Blockchain
 We build a blockchain in Python that contains two types of blocks. The procedure for voting is as follows:
 
 1. The voter decides their vote $v_i$, which we may assume to be binary. They randomly construct some `tinyVotes' $a_{ij}$ with the property that $\sum_{j} a_{ij} = v_i$, where each $a_{ij}$ will be broadcast to voter $j$.
@@ -33,8 +33,14 @@ $$
 \sum_i \sum_{j \neq i} a_{ji}.
 $$
 
-# Peer-to-peer network
-Online users constantly and regularly (every second) broadcast and receive the blockchain, as well as the tinyVotes.
+
+#### Peer-to-peer network
+Online users constantly and regularly (every second) broadcast and receive the blockchain, as well as the tinyVotes. Depending on the total size of the network, the peers that one communicates with is either everyone, or the users that were online recently.
+
+
+#### GUI
+We have built a most beautiful GUI which visualises the live status of the p2p network, through which new users can connect, and some statistics of vote results once polls close. We are also working on visualising the blockchain in this.
+
 
 
 

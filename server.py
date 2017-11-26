@@ -58,8 +58,9 @@ class Server(QObject):
         serversocket.bind(self.ownAddress())
         serversocket.listen()
         print("Listening")
-        while self.blockchain.is_finished():
+        while not self.blockchain.is_finished():
             self.update.emit(self.id_to_address)
+            print("Broadcasting")
             self.broadcast()
             try:
                 clientsocket, addr = serversocket.accept()
@@ -106,8 +107,6 @@ class Server(QObject):
         # Time to broadcast :)
         print("Broadcasting")
         self.last_broadcast = time.time()
-        self.broadcast_addresses()
-
         for vid, (ip, port) in self.id_to_address.items():
             assert (vid == self.my_id) == ((ip, port) == self.ownAddress())
             if vid == self.my_id:
