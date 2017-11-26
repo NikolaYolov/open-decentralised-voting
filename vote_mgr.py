@@ -13,7 +13,8 @@ class VoteMgr(object):
 
     def registerVote(self, vote):
         self.voted = True
-        self.private_vote = random.randint(0, const.max_secret) * const.separator + vote
+        self.private_vote = random.randint(0, const.max_secret) * const.vote_separator
+        + vote
 
         self.parts = {}
         left = self.private_vote

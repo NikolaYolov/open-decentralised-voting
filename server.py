@@ -85,12 +85,17 @@ class Server(QObject):
             self.vote_mgr.registerTinyVote(from_vtr, encr_part)
         elif msg.type == message.MessageType.BCBLOCK:
             self.blockchain.merge(msg.blockchain)
-            if (not self.my_id in self.blockchain.has_voted() and
+            if ((not self.my_id in self.blockchain.has_voted()) and
                 self.vote_mgr.hasVoted()):
                 content = {(self.my_id, other_id) :
                            blockchain.encrypt(vote_mgr.getTinyVote(other_id))
                            for other_id in self.ids if other_id != self.my_id}
                 self.blockchain.add_block(content)
+
+            if (not self.my_id in self.blockchain.construct_superstate() and
+                self.vote_mgr.tinyVotesCollected()):
+                content = {self.my_id : vote_mgr.tinyVotesAggregation()}
+                self.blockchain.add_block(content, is_superblock=True)
         else:
             print("Received a message of an unknown type")
             return

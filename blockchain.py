@@ -6,10 +6,9 @@ import random
 random.seed(20171125)
 
 
-
 def compute_hash(parentHash, number, content):
     to_hash = pickle.dumps((parentHash, number, content, const_modulo))
-    return hashlib.sha256(to_hash.encode('utf-8')).hexdigest()
+    return hashlib.sha256(to_hash).hexdigest()
 
 
 def encrypt(n):
@@ -184,7 +183,7 @@ class Blockchain(object):
         """
         state = self.construct_state()
         state_keys = sorted(state.keys())
-        all_keys = [[(i, j) for i in self.voterIDs] for j in self.voterIDs]
+        all_keys = [[(i, j) for j in self.voterIDs if i != j] for i in self.voterIDs]
         all_keys = sorted([key for sublist in all_keys for key in sublist])
         return state_keys == all_keys
 
@@ -202,7 +201,7 @@ class Blockchain(object):
         """
         Check that:
         - tinyVotes have not been cast yet in the longest chain
-        - all tinyVotes of voter are cast exactly once
+        - all tinyVotes of voter are cast exactly once to all other voters
         """
         if is_new_block:
             state = self.construct_state()
@@ -213,11 +212,12 @@ class Blockchain(object):
         intersect = set(used_keys) & set(new_keys)
         is_new = intersect == set()
 
-        new_voters = list(set([key[0] for key in new_keys]))
+        new_voters = set([key[0] for key in new_keys])
         is_complete = True
         for new_voter in new_voters:
             votees = [key[1] for key in new_keys if key[0] == new_voter]
-            is_complete *= sorted(votees) == sorted(self.voterIDs)
+            other_voters = [vid for vid in self.voterIDs if vid != new_voter]
+            is_complete *= sorted(votees) == sorted(other_voters)
         return is_complete & is_new
 
 
@@ -231,7 +231,7 @@ class Blockchain(object):
         for key in content.keys():
             if key in self.construct_superstate().keys():
                 raise Exception('Sum of tinyVotes already in blockchain!')               
-            sum_tinyVotes = np.sum([state[(i, key)] for i in self.voterIDs])
+            sum_tinyVotes = np.sum([state[(i, key)] for i in self.voterIDs if i != key])
             encrypted_rowsum = encrypt(content[key])
             if not sum_tinyVotes == encrypted_rowsum:
                 raise Exception('Sum of tinyVotes does not equal encrypted sum of row %s'%str(key))
@@ -354,27 +354,45 @@ class Blockchain(object):
             print('  >>Genesis block reached\n')
 
 
+    def merge(self, blockchain):
+        """
+        Merge two blockchains.
+        """
+        other_chain = blockchain.chain
+        for other_key, other_block in other_chain.items():
+            if other_key not in self.chain:
+                self.chain[other_key] = other_block
 
+                other_blockHash = other_block.blockHash
+                other_parentHash = other_block.parentHash
+                if other_parentHash in self.headers:
+                    self.headers.remove(other_parentHash)
+                    self.headers.append(other_blockHash)
+                elif other_parentHash in self.superheaders:
+                    self.superheaders.remove(other_parentHash)
+                    self.superheaders.append(other_blockHash)
 
-    ################ VERIFICATION STAGE
-
-
-
+        for header in blockchain.headers:
+            if header not in self.headers:
+                self.headers.append(header)
+        for header in blockchain.superheaders:
+            if header not in self.superheaders:
+                self.superheaders.append(header)
 
 
 
 def make_full_votes():
     b = Blockchain('test', range(10))
     for j in b.voterIDs:
-        #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs}
-        content = {(j, i) : 1 for i in b.voterIDs}
+        #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs if i != j}
+        content = {(j, i) : 1 for i in b.voterIDs if i != j}
         b.add_block(content)
     
         if j == 1:
             parentHash = b.headers[0]
 
-    #content = {(3, i) : random.randint(3285625, 23593845230467) for i in range(10)}
-    content = {(3, i) : 1 for i in range(10)}
+    #content = {(3, i) : random.randint(3285625, 23593845230467) for i in range(10) if i != j}
+    content = {(3, i) : 1 for i in range(10) if i != 3}
     blockHash = compute_hash(parentHash, 3, content)
     conflict_block = Block(
         parentHash=parentHash, 
@@ -388,11 +406,50 @@ def make_full_votes():
     return b
 
 
+def make_short_votes1():
+    b = Blockchain('test', range(10))
+    for j in range(2):
+        #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs if i != j}
+        content = {(j, i) : 1 for i in b.voterIDs if i != j}
+        b.add_block(content)
+    
+        if j == 1:
+            parentHash = b.headers[0]
+
+    #content = {(3, i) : random.randint(3285625, 23593845230467) for i in range(10) if i != j}
+    content = {(3, i) : 1 for i in range(10) if i != j}
+    blockHash = compute_hash(parentHash, 3, content)
+    conflict_block = Block(
+        parentHash=parentHash, 
+        blockHash=blockHash, 
+        number=3, 
+        content=content
+    )
+    b.headers.append(blockHash)
+    b.chain[blockHash] = conflict_block
+    
+    return b
+
+
+def make_short_votes2():
+    b = Blockchain('test', range(10))
+    for j in range(5,8):
+        #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs if i != j}
+        content = {(j, i) : 1 for i in b.voterIDs if i != j}
+        b.add_block(content)
+    
+        if j == 1:
+            parentHash = b.headers[0]    
+    return b
+
+
+
 def make_full_superstate(b):
     for j in b.voterIDs:
         #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs}
-        content = {j : 10 for i in b.voterIDs}
+        content = {j : 9 for i in b.voterIDs}
         b.add_block(content, is_superblock=True)
+
 
 """
 PROTOCOL:

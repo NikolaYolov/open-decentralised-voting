@@ -9,6 +9,7 @@ import voter_table
 import election
 import step1
 import add_address_window
+import vote_mgr
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -66,7 +67,7 @@ if __name__ == '__main__':
 
     votersTab = QWidget()
     voterLayout = QBoxLayout(QBoxLayout.TopToBottom, votersTab)
-    votersTable = voter_table.VoterTable()
+    votersTable = voter_table.VoterTable(eltion)
     step1.server.update.connect(votersTable.update)
     voterLayout.addWidget(votersTable)
     plus_pixmap = QPixmap("plus.png")
@@ -95,7 +96,7 @@ if __name__ == '__main__':
 
     btn = QPushButton("Vote", window)
     btn.setMaximumWidth(200)
-    btn.pressed.connect(vote_mgr.registerVote(voteCombo.currentIndex))
+    btn.pressed.connect(lambda: vote_mgr.registerVote(voteCombo.currentIndex()))
     btn.pressed.connect(lambda: btn.setEnabled(False))
     btn.pressed.connect(lambda: voteCombo.setEnabled(False))
     voteBtnsLayout.addWidget(btn)
