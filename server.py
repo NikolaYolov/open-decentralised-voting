@@ -7,6 +7,7 @@ from PyQt5.QtCore import *
 import election
 import const
 import message
+import blockchain
 
 def OwnIP():
     '''
@@ -28,7 +29,7 @@ def OwnPort(vid):
 class Server(QObject):
     update = pyqtSignal(dict)
     
-    def __init__(self, my_id, id_to_address, eltion):
+    def __init__(self, my_id, id_to_address, eltion, vote_mgr):
         super(Server, self).__init__()
 
         self.election = eltion
@@ -39,6 +40,8 @@ class Server(QObject):
         self.id_to_address[my_id] = self.ownAddress()
         print("P2P network : %s" % str(self.id_to_address))
         self.last_broadcast = 0
+        self.blockchain = blockchain.Blockchain("", self.ids)
+        self.vote_mgr = vote_mgr
 
         socket.setdefaulttimeout(1)
 
@@ -55,7 +58,7 @@ class Server(QObject):
         serversocket.bind(self.ownAddress())
         serversocket.listen()
         print("Listening")
-        while time.time() < self.election.polls_close:
+        while self.blockchain.is_finished():
             self.update.emit(self.id_to_address)
             self.broadcast()
             try:
@@ -78,9 +81,16 @@ class Server(QObject):
                 if vid in self.ids:
                     self.id_to_address[vid] = address
         elif msg.type == message.MessageType.TINYVOTE:
-            pass
+            assert mgs.to_vtr == self.my_id
+            self.vote_mgr.registerTinyVote(from_vtr, encr_part)
         elif msg.type == message.MessageType.BCBLOCK:
-            pass
+            self.blockchain.merge(msg.blockchain)
+            if (not self.my_id in self.blockchain.has_voted() and
+                self.vote_mgr.hasVoted()):
+                content = {(self.my_id, other_id) :
+                           blockchain.encrypt(vote_mgr.getTinyVote(other_id))
+                           for other_id in self.ids if other_id != self.my_id}
+                self.blockchain.add_block(content)
         else:
             print("Received a message of an unknown type")
             return
@@ -91,22 +101,36 @@ class Server(QObject):
         # Time to broadcast :)
         print("Broadcasting")
         self.last_broadcast = time.time()
+        self.broadcast_addresses()
+
         for vid, (ip, port) in self.id_to_address.items():
             assert (vid == self.my_id) == ((ip, port) == self.ownAddress())
             if vid == self.my_id:
                 continue
 
-            clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                print("Broadcasting to %s" % str((ip, port)))
-                clientsocket.connect((ip, port))
-                msg = message.Message()
-                msg.make_identification(self.id_to_address)
-                clientsocket.send(pickle.dumps(msg))
-            except:
-                pass
-            finally:
-                clientsocket.close()
+            msg = message.Message()
+            msg.make_identification(self.id_to_address)
+            self.send_message(ip, port, msg)
+
+            msg = Message()
+            msg.make_blockhcian(self.blockchain)
+            self.send_message(ip, port, msg)
+
+            if vote_mgr.hasVoted():
+                msg = Message()
+                msg.make_tiny_vote(self.my_id, vid, self.vote_mgr.getTinyVote(vid))
+                self.send_message(ip, port, msg)
+
+    def send_message(self, ip, port, msg):
+        clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            print("Broadcasting to %s" % str((ip, port)))
+            clientsocket.connect((ip, port))
+            clientsocket.send(pickle.dumps(msg))
+        except:
+            pass
+        finally:
+            clientsocket.close()            
 
 
 def serve(my_id, id_to_address):

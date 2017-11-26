@@ -3,7 +3,7 @@ import enum
 class MessageType(enum.Enum):
     IDENTIFICATION = 0
     TINYVOTE = 1
-    BCBLOCK = 2
+    BCBLOCKCHAIN = 2
 
 class Message(object):
     def make_identification(self, id_to_address):
@@ -19,6 +19,6 @@ class Message(object):
         self.to_vtr = to_voter
         self.encr_part = tiny_vote
 
-    def make_block(self, block):
-        self.type = MessageType.BCBLOCK
-        self.block = block
+    def make_blockhcian(self, blockchain):
+        self.type = MessageType.BCBLOCKHAIN
+        self.blockchian = blockchain

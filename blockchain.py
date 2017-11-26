@@ -17,6 +17,7 @@ def encrypt(n):
     return n
 
 
+
 class Block(object):
     """
     #Description:
@@ -60,7 +61,6 @@ class Block(object):
         self.blockHash = compute_hash(self.parentHash, self.number, self.content)
 
 
-
 class Blockchain(object):
     """
     name : string
@@ -71,8 +71,6 @@ class Blockchain(object):
     def __init__(self, name, voterIDs):
         self.name = name
         self.voterIDs = voterIDs
-        self.const_modulo = const_modulo
-
         self.genesisHash = compute_hash(None, 0, {})
         genesis_block = Block(
             parentHash=None, 
@@ -126,7 +124,7 @@ class Blockchain(object):
         """
         Determine matrix of tinyVotes from longest chain.
         """
-        state = self.chain[self.genesisHash].content
+        state = {}
         long_chain = self.longest_chain()
         blocks = long_chain.values()
         for block in blocks:
@@ -153,10 +151,31 @@ class Blockchain(object):
         return substate
 
 
+    def construct_superstate(self):
+        """
+        Determine list of superblock rowsums from longest chain.
+        """
+        state = {}
+        latestHash = self.determine_latestHash(is_superblock=True)
+        block = self.chain[latestHash]
+        blockHash = block.blockHash
+        while blockHash != self.genesisHash:
+            parentHash = block.parentHash
+            content = block.content
+            for key in content.keys():
+                if key in state.keys():
+                    Exception(str(key)+' appears multiple times in chain!')
+                if type(key) == tuple:
+                    break
+                state[key] = content[key]
+            block = self.chain[parentHash]
+            blockHash = block.blockHash
+        return state
+
+
     def has_voted(self):
         state = self.construct_state()        
-        voters = set([key[0] for key in state.keys()])
-        return list(voters)
+        return {[key[0] for key in state.keys()]}
 
 
     def is_complete_state(self):
@@ -168,6 +187,15 @@ class Blockchain(object):
         all_keys = [[(i, j) for i in self.voterIDs] for j in self.voterIDs]
         all_keys = sorted([key for sublist in all_keys for key in sublist])
         return state_keys == all_keys
+
+
+    def is_finished(self):
+        """
+        Determine whether all votes have been cast and verified.
+        """
+        is_complete_state = self.is_complete_state()
+        is_complete_superstate = sorted(self.construct_superstate().keys()) == sorted(self.voterIDs)
+        return is_complete_state & is_complete_superstate
 
 
     def is_valid_vote(self, block, is_new_block=True):
@@ -193,13 +221,16 @@ class Blockchain(object):
         return is_complete & is_new
 
 
-    def is_valid_row(self, content):
+    def is_valid_row(self, content, is_new_block=True):
         """
-        For superblocks, verify that row sum of encrypted tinyVotes equals content of superblock. 
+        For superblocks, verify that row sum of encrypted tinyVotes equals content of superblock, 
+        and rowsum has not been given before. 
         """
         assert self.is_complete_state()
         state = self.construct_state()
         for key in content.keys():
+            if key in self.construct_superstate().keys():
+                raise Exception('Sum of tinyVotes already in blockchain!')               
             sum_tinyVotes = np.sum([state[(i, key)] for i in self.voterIDs])
             encrypted_rowsum = encrypt(content[key])
             if not sum_tinyVotes == encrypted_rowsum:
@@ -236,7 +267,7 @@ class Blockchain(object):
                 not_voted = [vid for vid in self.voterIDs if vid not in self.has_voted()]
                 raise Exception('Voting has not been completed yet! To vote: %s'%str(not_voted))            
             self.verify()
-            if not self.is_valid_row(block.content):
+            if not self.is_valid_row(block.content, is_new_block=True):
                 raise Exception('Invalid content of block %s'%blockNumber)
 
         return True
@@ -294,11 +325,11 @@ class Blockchain(object):
 
 
     def print_chain(self):
-        if self.superheaders != []:
-            headers = self.superheaders
-        else:
-            headers = self.headers
+        headers = self.superheaders + self.headers
+        seen = []
         for header in headers:
+            if header in seen:
+                continue
             print('Printing everything below header %s'%header)
             block = self.chain[header]
             content = block.content
@@ -314,9 +345,11 @@ class Blockchain(object):
                 print('    blockHash: %s'%blockHash)
                 print('    contents:')
                 for key in content.keys():
-                    print('        (%d, %d) : %d'%(key[0], key[1], content[key]))
+                    print('        %s : %d'%(str(key), content[key]))
                 print('\n')
                 block = self.chain[parentHash]
+                if blockHash in headers:
+                    seen.append(blockHash)
                 blockHash = parentHash
             print('  >>Genesis block reached\n')
 
@@ -355,6 +388,11 @@ def make_full_votes():
     return b
 
 
+def make_full_superstate(b):
+    for j in b.voterIDs:
+        #content = {(j, i) : random.randint(3285625, 328562583) for i in b.voterIDs}
+        content = {j : 10 for i in b.voterIDs}
+        b.add_block(content, is_superblock=True)
 
 """
 PROTOCOL:

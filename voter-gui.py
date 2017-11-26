@@ -57,12 +57,16 @@ if __name__ == '__main__':
     myid = 0
     if len(sys.argv) >= 2:
         myid = int(sys.argv[1])
-    step1 = step1.Step1(myid, id_to_address)
+
+    eltion = election.SampleElection()
+
+    vote_mgr = vote_mgr.VoteMgr(myid, [vtr.id for vtr in eltion.voters])
+    step1 = step1.Step1(myid, id_to_address, vote_mgr)
     step1.start()
 
     votersTab = QWidget()
     voterLayout = QBoxLayout(QBoxLayout.TopToBottom, votersTab)
-    votersTable = voter_table.VoterTable(election.SampleElection())
+    votersTable = voter_table.VoterTable()
     step1.server.update.connect(votersTable.update)
     voterLayout.addWidget(votersTable)
     plus_pixmap = QPixmap("plus.png")
@@ -82,16 +86,16 @@ if __name__ == '__main__':
     voteBtnsLayout = QBoxLayout(QBoxLayout.LeftToRight)
     layout.addLayout(voteBtnsLayout)
     btns = []
-
     
     voteCombo = QComboBox(window)
     voteCombo.setMaximumWidth(200)
     voteCombo.addItem("Hillary Clinton")
     voteCombo.addItem("Donald Trump")
     voteBtnsLayout.addWidget(voteCombo)
-    
+
     btn = QPushButton("Vote", window)
     btn.setMaximumWidth(200)
+    btn.pressed.connect(vote_mgr.registerVote(voteCombo.currentIndex))
     btn.pressed.connect(lambda: btn.setEnabled(False))
     btn.pressed.connect(lambda: voteCombo.setEnabled(False))
     voteBtnsLayout.addWidget(btn)
